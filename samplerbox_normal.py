@@ -125,7 +125,8 @@ class PlayingSound:
         self.doublenote = doublenote
 
     def fadeout(self, i):
-        self.isfadeout = True
+        if MIDI_CH != 4: 
+            self.isfadeout = True
 
     def stop(self):
         try:
@@ -219,19 +220,27 @@ def MidiCallback(message, time_stamp):
     midinote = note
     velocity = message[2] if len(message) > 2 else None
 
-    if messagetype == 9: # Note on
-        if note == 1:    # Use note 1 as note off
-            for s in playingsounds:
-                s.fadeout(50)
-        else:
-            midinote += globaltranspose
-            try:
-                samples[midinote, velocity].play(midinote, velocity)
-                doublenote = samples[midinote, velocity].doublenote
-                if doublenote != 0:
-                    samples[doublenote, velocity].play(doublenote, velocity)
-            except:
-                pass
+    if messagetype == 9 and velocity == 0:
+        messagetype = 8
+
+    if messagetype == 9:    # Note on
+        midinote += globaltranspose
+        midinote += 12
+        try:
+            playingnotes.setdefault(midinote, []).append(samples[midinote, velocity].play(midinote, velocity))
+        except:
+            pass
+
+    elif messagetype == 8:  # Note off
+        midinote += globaltranspose
+        midinote += 12
+        if midinote in playingnotes:
+            for n in playingnotes[midinote]:
+                if sustain:
+                    sustainplayingnotes.append(n)
+                else:
+                    n.fadeout(50)
+            playingnotes[midinote] = []
 
     elif messagetype == 12:  # Program change
         print 'Program change ' + str(note)

@@ -1,2 +1,2 @@
-%midinote.wav
+%midinote_%vol.wav
 %%velocitysensitivity=1

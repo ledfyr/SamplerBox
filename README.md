@@ -1,11 +1,39 @@
 SamplerBox
 ==========
 
+Modified version of SamplerBox. Added features:
+* Forked from velocity sensitivity patch by paul-at, so supports `%%velocitysensitivity` in definition.txt.
+* Added possibility to control the max volume of individual samples (velocity works at the same time, but you now get a maximum level control for each sample). Use `%samplegain` in definition.txt
+* Added possibility to stack two samples on top of each other. Use `%doublenote` in definition.txt to connect one sample to another. Both samples will be played when the first is played. Value 0 is necessary when only one sample is desired.
+* Command line parameters added, example on how to start: `python samplerbox.py "$cardname" "$sampledir" "$polyphony" "$midich" "$samplepreset"`
+* Some personal tweaks: samplebox-normal.py has no support for `%doublenote` and has the usual note-off behavior (suitable for piano), samplerbox.py has support for `%doublenote` and kills notes when playing sample #1 (suitable for drum samples).
+
+Examples:
+
+```
+definition.txt:
+
+%midinote_*_%samplegaind%doublenote.wav
+%%velocitysensitivity=1
+
+
+file names:
+
+2_bd-rio_84d0.wav         (lone bass drum)
+3_bd-rio_84d12.wav        (same bass drum as above + sample #12 playing at the same time)
+...
+12_clp-offshore_100d0.wav (clap)
+...
+56_sd-uplifter_100d0.wav  (snare)
+```
+
+
+Old README below:
+
+
 An open-source audio sampler project based on RaspberryPi.
 
 Website: www.samplerbox.org
-
-[![](http://gget.it/flurexml/1.jpg)](https://www.youtube.com/watch?v=yz7GZ8YOjTw)
 
 [Install](#install)
 ----
