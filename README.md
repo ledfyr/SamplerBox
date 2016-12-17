@@ -7,6 +7,7 @@ Modified version of SamplerBox. Added features:
 * Added possibility to stack two samples on top of each other. Use `%doublenote` in definition.txt to connect one sample to another. Both samples will be played when the first is played. Value 0 is necessary when only one sample is desired.
 * Command line parameters added, example on how to start: `python samplerbox.py "$cardname" "$sampledir" "$polyphony" "$midich" "$samplepreset"`
 * Some personal tweaks: samplebox-normal.py has no support for `%doublenote` and has the usual note-off behavior (suitable for piano), samplerbox.py has support for `%doublenote` and kills notes when playing sample #1 (suitable for drum samples).
+* Auto-start: copy startm.sh to /home/pi, modify to fit your needs and add the following to /etc/rc.local (put on the row above "exit 0"): `/home/pi/startm.sh &`
 
 Examples:
 
