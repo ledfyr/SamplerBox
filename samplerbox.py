@@ -48,7 +48,8 @@ import samplerbox_audio                         # legacy audio (pre RPi-2 models
 
 MIDI_CH = int(sys.argv[4])
 MAX_POLYPHONY = int(sys.argv[3])
-SAMPLES_DIR = sys.argv[2]
+SAMPLES_DIR = sys.argv[2] + "/samples"
+KICKS_DIR = sys.argv[2] + "/kicks"
 
 #########################################
 # SLIGHT MODIFICATION OF PYTHON'S WAVE MODULE
@@ -182,6 +183,7 @@ sustain = False
 playingsounds = []
 globalvolume = 10 ** (-12.0/20)  # -12dB default global volume
 globaltranspose = 0
+kicknote = 2
 
 
 #########################################
@@ -206,7 +208,7 @@ def AudioCallback(in_data, frame_count, time_info, status):
 
 def MidiCallback(message, time_stamp):
     global playingnotes, sustain, sustainplayingnotes
-    global preset
+    global kickpreset
     messagetype = message[0] >> 4
     if messagetype == 15:    # Ignore system messages
         return
@@ -235,7 +237,7 @@ def MidiCallback(message, time_stamp):
 
     elif messagetype == 12:  # Program change
         print 'Program change ' + str(note)
-        preset = note
+        kickpreset = note
         LoadSamples()
 
     elif (messagetype == 11) and (note == 64) and (velocity < 64):  # sustain pedal off
@@ -273,7 +275,6 @@ def LoadSamples():
 
 NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
 
-
 def ActuallyLoad():
     global preset
     global samples
@@ -285,6 +286,8 @@ def ActuallyLoad():
     globalvolume = 10 ** (-12.0/20)  # -12dB default global volume
     globaltranspose = 0
     globalvelocitysensitivity = 0 # default midi velocity sensitivity 
+
+    ActuallyLoadKick()
 
     basename = next((f for f in os.listdir(SAMPLES_DIR) if f.startswith("%d " % preset)), None)      # or next(glob.iglob("blah*"), None)
     if basename:
@@ -367,6 +370,79 @@ def ActuallyLoad():
         display("E%03d" % preset)
 
 
+def ActuallyLoadKick():
+    global kickpreset
+    global kicknote
+    global samples
+    global playingsounds
+    global globalvolume, globaltranspose
+    global globalvelocitysensitivity
+
+    dirname = KICKS_DIR
+    if not dirname:
+        print 'Kick dir missing'
+        return
+    print 'Kick preset loading: %s (%s)' % (kickpreset, dirname)
+    display("L%03d" % kickpreset)
+
+    definitionfname = os.path.join(dirname, "definition.txt")
+    if os.path.isfile(definitionfname):
+        with open(definitionfname, 'r') as definitionfile:
+            for i, pattern in enumerate(definitionfile):
+                try:
+                    if r'%%volume' in pattern:        # %%paramaters are global parameters
+                        globalvolume *= 10 ** (float(pattern.split('=')[1].strip()) / 20)
+                        continue
+                    if r'%%transpose' in pattern:
+                        globaltranspose = int(pattern.split('=')[1].strip())
+                        continue
+                    if r'%%velocitysensitivity' in pattern:
+                        globalvelocitysensitivity = float(pattern.split('=')[1].strip())
+                        continue
+                    defaultparams = {'midinote': '0', 'velocity': '127', 'samplegain': '100', 'doublenote': '0', 'notename': ''}
+                    if len(pattern.split(',')) > 1:
+                        defaultparams.update(dict([item.split('=') for item in pattern.split(',', 1)[1].replace(' ', '').replace('%', '').split(',')]))
+                    pattern = pattern.split(',')[0]
+                    pattern = re.escape(pattern.strip())
+                    pattern = pattern.replace(r"\%midinote", r"(?P<midinote>\d+)").replace(r"\%velocity", r"(?P<velocity>\d+)").replace(r"\%samplegain", r"(?P<samplegain>\d+)")\
+                                     .replace(r"\%doublenote", r"(?P<doublenote>\d+)").replace(r"\%notename", r"(?P<notename>[A-Ga-g]#?[0-9])").replace(r"\*", r".*?").strip()    # .*? => non greedy
+                    for fname in os.listdir(dirname):
+                        if LoadingInterrupt:
+                            return
+                        m = re.match(pattern, fname)
+                        if m:
+                            info = m.groupdict()
+                            midinote = int(info.get('midinote', defaultparams['midinote']))
+                            velocity = int(info.get('velocity', defaultparams['velocity']))
+                            samplegain = float(info.get('samplegain', defaultparams['samplegain']))/100
+                            doublenote = 0   # not used for kicks
+                            notename = info.get('notename', defaultparams['notename'])
+                            if notename:
+                                midinote = NOTES.index(notename[:-1].lower()) + (int(notename[-1])+2) * 12
+                            if midinote != kickpreset:
+                                continue
+
+                            samples[kicknote, velocity] = Sound(os.path.join(dirname, fname), kicknote, velocity, samplegain, doublenote)
+                            print 'Kick preset loaded: ' + str(kickpreset)
+                            display("%04d" % kickpreset)
+                            return
+                except:
+                    print "Error in kick definition file, skipping line %s." % (i+1)
+
+    else:
+        if LoadingInterrupt:
+            return
+        file = os.path.join(dirname, "%d.wav" % kicknote)
+        if os.path.isfile(file):
+            samples[kicknote, 127] = Sound(file, kicknote, 127, 100, 0)
+            print 'Kick preset loaded: ' + str(kickpreset)
+            display("%04d" % kickpreset)
+            return
+
+    print 'Kick preset empty: ' + str(kickpreset)
+    display("E%03d" % kickpreset)
+
+
 #########################################
 # OPEN AUDIO DEVICE
 #
@@ -382,7 +458,7 @@ for i in range(p.get_device_count()):
         AUDIO_DEVICE_ID = i
         break
 try:
-    stream = p.open(format=pyaudio.paInt16, channels=2, rate=44100, frames_per_buffer=512, output=True,
+    stream = p.open(format=pyaudio.paInt16, channels=2, rate=44100, frames_per_buffer=128, output=True,
                     input=False, output_device_index=AUDIO_DEVICE_ID, stream_callback=AudioCallback)
     print 'Opened audio: ' + p.get_device_info_by_index(AUDIO_DEVICE_ID)['name']
 except:
@@ -501,6 +577,7 @@ if USE_SERIALPORT_MIDI:
 
 #preset = 0
 preset = int(sys.argv[5])
+kickpreset = 0
 LoadSamples()
 
 

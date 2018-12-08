@@ -35,21 +35,23 @@ else
 fi
 
 
-sampledir="/home/pi/samples"
+sampledir="/home/pi/sounds"
 cd /home/pi/velo-SamplerBox
 
-connected=`lsblk | grep sda` # Select piano or drum machine mode depending on if a card reader is connected
-if [ -n "$connected" ]; then
-  # Piano mode
-  midich="1"
-  polyphony="10"
-  samplepreset="0"
-  python samplerbox_normal.py "$cardname" "$sampledir" "$polyphony" "$midich" "$samplepreset" &
-else
-  # Drum machine mode
-  midich="4"
-  polyphony="3"
-  samplepreset="1"
-  python samplerbox.py "$cardname" "$sampledir" "$polyphony" "$midich" "$samplepreset" &
-fi
+#connected=`lsblk | grep sda` # Select piano or drum machine mode depending on if a card reader is connected
+#if [ -n "$connected" ]; then
+#  # Piano mode
+#  midich="1"
+#  polyphony="10"
+#  samplepreset="0"
+#  python samplerbox_normal.py "$cardname" "$sampledir" "$polyphony" "$midich" "$samplepreset" &
+#else
+
+# Drum machine mode
+midich="4"
+polyphony="3"
+samplepreset="1"
+python samplerbox.py "$cardname" "$sampledir" "$polyphony" "$midich" "$samplepreset" &
+
+#fi
 
