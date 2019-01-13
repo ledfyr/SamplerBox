@@ -156,8 +156,11 @@ class Sound:
         wf.close()
 
     def play(self, note, velocity):
+        global kicknote
+        global kickbend
         actual_velocity = (1-globalvelocitysensitivity + (globalvelocitysensitivity * (velocity/127.0)))*self.samplegain
-        snd = PlayingSound(self, note, actual_velocity, self.doublenote)
+        bend = int(kickbend * ((84.0 - note) / 8191)) if (self.midinote == kicknote or self.doublenote == kicknote) else 0
+        snd = PlayingSound(self, note + bend, actual_velocity, self.doublenote)
         playingsounds.append(snd)
         return snd
 
@@ -184,6 +187,7 @@ playingsounds = []
 globalvolume = 10 ** (-12.0/20)  # -12dB default global volume
 globaltranspose = 0
 kicknote = 2
+kickbend = 0
 
 
 #########################################
@@ -209,6 +213,7 @@ def AudioCallback(in_data, frame_count, time_info, status):
 def MidiCallback(message, time_stamp):
     global playingnotes, sustain, sustainplayingnotes
     global kickpreset
+    global kickbend
     messagetype = message[0] >> 4
     if messagetype == 15:    # Ignore system messages
         return
@@ -235,8 +240,12 @@ def MidiCallback(message, time_stamp):
             except:
                 pass
 
+    elif messagetype == 14:  # Pitch bend
+        kickbend_tmp = (note | (velocity << 7)) - 8192
+        if kickbend_tmp >= 0:
+            kickbend = kickbend_tmp
+
     elif messagetype == 12:  # Program change
-        print 'Program change ' + str(note)
         kickpreset = note
         LoadSamples()
 
