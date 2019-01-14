@@ -6,6 +6,7 @@ Modified version of SamplerBox. Added features:
 * Added possibility to control the max volume of individual samples (velocity works at the same time, but you now get a maximum level control for each sample). Use `%samplegain` in definition.txt
 * Added possibility to stack two samples on top of each other. Use `%doublenote` in definition.txt to connect one sample to another. Both samples will be played when the first is played. Value 0 is necessary when only one sample is desired.
 * Added kick directory (shared between all sample dirs, can have it's own definition.txt, kicks always load to midi note 2, doublenote from sampledir to kick works to stack samples with kick, program change only affects kick).
+* Added pitch bend for midi note 2 (kick). Pitch wheel and CC 2 control the pitch of the sample at note 2 and all other samples having note 2 as `%doublenote`.
 * Command line parameters added, example on how to start: `python samplerbox.py "$cardname" "$sampledir" "$polyphony" "$midich" "$samplepreset"`
 * Some personal tweaks: samplebox-normal.py has no support for `%doublenote` and has the usual note-off behavior (suitable for piano), samplerbox.py has support for `%doublenote` and kills notes when playing sample #1 (suitable for drum samples).
 * Auto-start: copy startm.sh to /home/pi, modify to fit your needs and add the following to /etc/rc.local (put on the row above "exit 0"): `/home/pi/startm.sh &`

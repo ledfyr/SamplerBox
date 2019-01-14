@@ -159,7 +159,7 @@ class Sound:
         global kicknote
         global kickbend
         actual_velocity = (1-globalvelocitysensitivity + (globalvelocitysensitivity * (velocity/127.0)))*self.samplegain
-        bend = int(kickbend * ((84.0 - note) / 8191)) if (self.midinote == kicknote or self.doublenote == kicknote) else 0
+        bend = int(kickbend * ((84.0 - note) / 127)) if (self.midinote == kicknote or self.doublenote == kicknote) else 0
         snd = PlayingSound(self, note + bend, actual_velocity, self.doublenote)
         playingsounds.append(snd)
         return snd
@@ -240,10 +240,13 @@ def MidiCallback(message, time_stamp):
             except:
                 pass
 
+    elif (messagetype == 11) and (note == 2):  # CC #2
+        kickbend = velocity
+
     elif messagetype == 14:  # Pitch bend
         kickbend_tmp = (note | (velocity << 7)) - 8192
         if kickbend_tmp >= 0:
-            kickbend = kickbend_tmp
+            kickbend = int(kickbend_tmp * (127 / 8191.0))
 
     elif messagetype == 12:  # Program change
         kickpreset = note
