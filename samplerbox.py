@@ -13,7 +13,8 @@
 # CONFIG
 #########################################
 
-AUDIO_DEVICE_ID = 2                     # change this number to use another soundcard
+AUDIO_DEVICE_ID1 = 0
+AUDIO_DEVICE_ID2 = 2
 SAMPLES_DIR = "."                       # The root directory containing the sample-sets. Example: "/media/" to look for samples on a USB stick / SD card
 USE_SERIALPORT_MIDI = False             # Set to True to enable MIDI IN via SerialPort (e.g. RaspberryPi's GPIO UART pins)
 USE_I2C_7SEGMENTDISPLAY = False         # Set to True to use a 7-segment display via I2C
@@ -46,10 +47,13 @@ import rtmidi_python as rtmidi
 import samplerbox_audio                         # legacy audio (pre RPi-2 models)
 #import samplerbox_audio_neon as samplerbox_audio # ARM NEON instruction set
 
+CARDS = sys.argv[1].split(',')
+CARD1 = CARDS[0]
+CARD2 = CARDS[1] if len(CARDS) == 2 else ''
 MIDI_CH = int(sys.argv[4])
 MAX_POLYPHONY = int(sys.argv[3])
-SAMPLES_DIR = sys.argv[2] + "/samples"
-KICKS_DIR = sys.argv[2] + "/kicks"
+SAMPLES_DIR = sys.argv[2] + '/samples'
+KICKS_DIR = sys.argv[2] + '/kicks'
 
 #########################################
 # SLIGHT MODIFICATION OF PYTHON'S WAVE MODULE
@@ -116,7 +120,7 @@ class waveread(wave.Wave_read):
 
 class PlayingSound:
 
-    def __init__(self, sound, note, velocity, doublenote):
+    def __init__(self, sound, note, velocity, doublenote, iskick):
         self.sound = sound
         self.pos = 0
         self.fadeoutpos = 0
@@ -124,13 +128,17 @@ class PlayingSound:
         self.note = note
         self.velocity = velocity
         self.doublenote = doublenote
+        self.iskick = iskick
 
     def fadeout(self, i):
         self.isfadeout = True
 
     def stop(self):
         try:
-            playingsounds.remove(self)
+            if CARD2 and self.iskick:
+                playingsounds2.remove(self)
+            else:
+                playingsounds1.remove(self)
         except:
             pass
 
@@ -159,9 +167,13 @@ class Sound:
         global kicknote
         global kickbend
         actual_velocity = (1-globalvelocitysensitivity + (globalvelocitysensitivity * (velocity/127.0)))*self.samplegain
-        bend = int(kickbend * ((84.0 - note) / 127)) if (self.midinote == kicknote or self.doublenote == kicknote) else 0
-        snd = PlayingSound(self, note + bend, actual_velocity, self.doublenote)
-        playingsounds.append(snd)
+        iskick = self.midinote == kicknote
+        bend = int(kickbend * ((84.0 - note) / 127)) if (iskick or self.doublenote == kicknote) else 0
+        snd = PlayingSound(self, note + bend, actual_velocity, self.doublenote, iskick)
+        if CARD2 and iskick:
+            playingsounds2.append(snd)
+        else:
+            playingsounds1.append(snd)
         return snd
 
     def frames2array(self, data, sampwidth, numchan):
@@ -183,7 +195,8 @@ samples = {}
 playingnotes = {}
 sustainplayingnotes = []
 sustain = False
-playingsounds = []
+playingsounds1 = []
+playingsounds2 = []
 globalvolume = 10 ** (-12.0/20)  # -12dB default global volume
 globaltranspose = 0
 kicknote = 2
@@ -195,23 +208,37 @@ kickbend = 0
 #
 #########################################
 
-def AudioCallback(in_data, frame_count, time_info, status):
-    global playingsounds
+def AudioCallback1(in_data, frame_count, time_info, status):
+    global playingsounds1
     rmlist = []
-    playingsounds = playingsounds[-MAX_POLYPHONY:]
-    b = samplerbox_audio.mixaudiobuffers(playingsounds, rmlist, frame_count, FADEOUT, FADEOUTLENGTH, SPEED, globalvolume)
+    playingsounds1 = playingsounds1[-MAX_POLYPHONY:]
+    b = samplerbox_audio.mixaudiobuffers(playingsounds1, rmlist, frame_count, FADEOUT, FADEOUTLENGTH, SPEED, globalvolume)
     for e in rmlist:
         try:
-            playingsounds.remove(e)
+            playingsounds1.remove(e)
         except:
             pass
 #    odata = (b.astype(numpy.int16)).tostring()
     odata = b.tostring()
     return (odata, pyaudio.paContinue)
 
+def AudioCallback2(in_data, frame_count, time_info, status):
+    global playingsounds2
+    rmlist = []
+    playingsounds2 = playingsounds2[-MAX_POLYPHONY:]
+    b = samplerbox_audio.mixaudiobuffers(playingsounds2, rmlist, frame_count, FADEOUT, FADEOUTLENGTH, SPEED, globalvolume)
+    for e in rmlist:
+        try:
+            playingsounds2.remove(e)
+        except:
+            pass
+#    odata = (b.astype(numpy.int16)).tostring()
+    odata = b.tostring()
+    return (odata, pyaudio.paContinue)
 
 def MidiCallback(message, time_stamp):
     global playingnotes, sustain, sustainplayingnotes
+    global preset
     global kickpreset
     global kickbend
     messagetype = message[0] >> 4
@@ -228,7 +255,9 @@ def MidiCallback(message, time_stamp):
 
     if messagetype == 9: # Note on
         if note == 1:    # Use note 1 as note off
-            for s in playingsounds:
+            for s in playingsounds2:
+                s.fadeout(50)
+            for s in playingsounds1:
                 s.fadeout(50)
         else:
             midinote += globaltranspose
@@ -249,7 +278,10 @@ def MidiCallback(message, time_stamp):
             kickbend = int(kickbend_tmp * (127 / 8191.0))
 
     elif messagetype == 12:  # Program change
-        kickpreset = note
+        if note < 64:
+            kickpreset = note
+        else:
+            preset = note - 64
         LoadSamples()
 
     elif (messagetype == 11) and (note == 64) and (velocity < 64):  # sustain pedal off
@@ -290,10 +322,10 @@ NOTES = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
 def ActuallyLoad():
     global preset
     global samples
-    global playingsounds
+    global playingsounds1
     global globalvolume, globaltranspose
     global globalvelocitysensitivity
-    playingsounds = []
+    playingsounds1 = []
     samples = {}
     globalvolume = 10 ** (-12.0/20)  # -12dB default global volume
     globaltranspose = 0
@@ -386,10 +418,12 @@ def ActuallyLoadKick():
     global kickpreset
     global kicknote
     global samples
-    global playingsounds
+    global playingsounds2
     global globalvolume, globaltranspose
     global globalvelocitysensitivity
 
+    if CARD2:
+        playingsounds2 = []
     dirname = KICKS_DIR
     if not dirname:
         print 'Kick dir missing'
@@ -465,16 +499,24 @@ for i in range(p.get_device_count()):
     dev = p.get_device_info_by_index(i)
     # Find card name using aplay -l
     # print "checking device: " + str(i) + " " + str(dev['maxOutputChannels']) + " " + sys.argv[1] + " " + dev['name']
-    if dev['maxOutputChannels'] > 0 and sys.argv[1] in dev['name']:
-        print "Will use argv device: index=" + str(i) + " name=" + dev['name']
-        AUDIO_DEVICE_ID = i
-        break
+    if dev['maxOutputChannels'] > 0:
+        if CARD1 in dev['name']:
+            print "CARD1 device: index=" + str(i) + " name=" + dev['name']
+            AUDIO_DEVICE_ID1 = i
+        elif CARD2 and CARD2 in dev['name']:
+            print "CARD2 device: index=" + str(i) + " name=" + dev['name']
+            AUDIO_DEVICE_ID2 = i
+
 try:
-    stream = p.open(format=pyaudio.paInt16, channels=2, rate=44100, frames_per_buffer=128, output=True,
-                    input=False, output_device_index=AUDIO_DEVICE_ID, stream_callback=AudioCallback)
-    print 'Opened audio: ' + p.get_device_info_by_index(AUDIO_DEVICE_ID)['name']
+    stream1 = p.open(format=pyaudio.paInt16, channels=2, rate=44100, frames_per_buffer=128, output=True,
+                    input=False, output_device_index=AUDIO_DEVICE_ID1, stream_callback=AudioCallback1)
+    print 'Opened audio1: ' + p.get_device_info_by_index(AUDIO_DEVICE_ID1)['name']
+    if CARD2:
+        stream2 = p.open(format=pyaudio.paInt16, channels=2, rate=44100, frames_per_buffer=128, output=True,
+                        input=False, output_device_index=AUDIO_DEVICE_ID2, stream_callback=AudioCallback2)
+        print 'Opened audio2: ' + p.get_device_info_by_index(AUDIO_DEVICE_ID2)['name']
 except:
-    print "Invalid Audio Device ID: " + str(AUDIO_DEVICE_ID)
+    print "Invalid Audio Device ID: " + str(AUDIO_DEVICE_ID1) + " or " + str(AUDIO_DEVICE_ID2)
     print "Here is a list of audio devices:"
     for i in range(p.get_device_count()):
         dev = p.get_device_info_by_index(i)
