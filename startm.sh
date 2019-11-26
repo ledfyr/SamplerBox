@@ -56,7 +56,7 @@ if [ -z "$card1name" ] && [ -z "$card2name" ]; then
 fi
 
 sampledir="/home/pi/sounds"
-cd /home/pi/velo-SamplerBox
+cd /home/pi/SamplerBox
 
 #echo "$cardname"
 
