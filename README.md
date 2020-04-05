@@ -2,6 +2,7 @@ SamplerBox
 ==========
 
 Modified version of SamplerBox. Added features:
+* Drum track play mode: samples are not stopped even if your sequencer sends note-off on overlapping notes. Stop samples with MIDI note 1.
 * Forked from velocity sensitivity patch by paul-at, so supports `%%velocitysensitivity` in definition.txt.
 * Added possibility to control the max volume of individual samples (velocity works at the same time, but you now get a maximum level control for each sample). Use `%samplegain` in definition.txt
 * Added possibility to stack two samples on top of each other. Use `%doublenote` in definition.txt to connect one sample to another. Both samples will be played when the first is played. Value 0 is necessary when only one sample is desired.
@@ -10,26 +11,32 @@ Modified version of SamplerBox. Added features:
 * Added pitch bend for midi note 2 (kick). Pitch wheel and CC 2 control the pitch of the sample at note 2 and all other samples having note 2 as `%doublenote`.
 * Command line parameters added, example on how to start: `python samplerbox.py "$cardname" "$sampledir" "$polyphony" "$midich" "$samplepreset"`
 * Added support for two sound cards (kick plays only on card2, other samples plays on card1), specify the names separated by comma in the cardname command line parameter. Example: "card1,card2". It's still possible to use only one card by only supplying one card name in the command line parameter, then all samples (kick + others) are played on that single card.
-* Some personal tweaks: samplebox-normal.py has no support for `%doublenote` and has the usual note-off behavior (suitable for piano), samplerbox.py has support for `%doublenote` and kills notes when playing sample #1 (suitable for drum samples).
+* For regular SamplerBox functionality, use `samplebox-normal.py` (it has the normal note-off functionality and no added functions except velocity).
 * Auto-start: copy startm.sh to /home/pi, modify to fit your needs and add the following to /etc/rc.local (put on the row above "exit 0"): `/home/pi/startm.sh &`
 
 Examples:
 
 ```
-definition.txt:
+Directory/file structure (NOTE: kicks index must start at 0 and samples at 3):
+
+/home/pi/sounds/kicks/
+0_firstkick_86d0.wav
+1_secondkick_100d0.wav
+... and so on, up to 64 kicks.
+
+/home/pi/sounds/samples/1 Samples/
+3_hihat_94d2.wav   (d2 means that this sample will be stacked with the kick)
+4_clap_100d0.wav
+... and so on, up to 127 samples
+
+/home/pi/sounds/samples/2 Samples/
+... and so on, up to 64 sample directories
+
+
+definition.txt (must exist with these contents in every sample directory and the kicks directory):
 
 %midinote_*_%samplegaind%doublenote.wav
 %%velocitysensitivity=1
-
-
-file names:
-
-2_bd-rio_84d0.wav         (lone bass drum)
-3_bd-rio_84d12.wav        (same bass drum as above + sample #12 playing at the same time)
-...
-12_clp-offshore_100d0.wav (clap)
-...
-56_sd-uplifter_100d0.wav  (snare)
 ```
 
 
