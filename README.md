@@ -3,6 +3,7 @@ SamplerBox
 
 Modified version of SamplerBox. Added features:
 * Drum track play mode: samples are not stopped even if your sequencer sends note-off on overlapping notes. Stop samples with MIDI note 1.
+* MIDI channel (default: 4), MIDI devices, sound card(s) etc are configured in the startup script `startm.sh`, see notes in that script on how to find/configure devices.
 * Forked from velocity sensitivity patch by paul-at, so supports `%%velocitysensitivity` in definition.txt.
 * Added possibility to control the max volume of individual samples (velocity works at the same time, but you now get a maximum level control for each sample). Use `%samplegain` in definition.txt
 * Added possibility to stack two samples on top of each other. Use `%doublenote` in definition.txt to connect one sample to another. Both samples will be played when the first is played. Value 0 is necessary when only one sample is desired.
